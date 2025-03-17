@@ -1,0 +1,254 @@
+#!/bin/bash
+export DATE_TIME=`date '+%F_%H:%M:%S'`
+host=`hostname`
+export REPORT_FILE="/tmp/oracle_precheck_$host_$DATE_TIME.html"
+ 
+DB=($(ps -ef |grep smon | awk -F'_' '{print $3}' |grep -Evi '+ASM|+ASM1|+ASM2|-MGMTDB'))
+ 
+ORAHOME=$(cat /etc/oratab | awk -F"$DB" '{print $2}'| awk -F':' '{print $2}')
+ 
+        if [ ! -z "$ORAHOME" -a "$ORAHOME" != " "]
+                then
+                        export ORAHOME=`echo $ORAHOME`
+        else
+                        export ORAHOME=`echo $ORACLE_HOME`
+        fi
+ 
+# Initialize HTML report myarr
+echo "<html><body><h2>Oracle Database Pre-Check Report</h2>" > $REPORT_FILE
+echo "<h3>Running Databases</h3>" >> $REPORT_FILE
+echo "<pre>$(ps -ef | grep pmon | grep -v grep)</pre>" >> $REPORT_FILE
+echo "<h3>TNS Listener Status</h3>" >> $REPORT_FILE
+echo "<pre>$(ps -ef | grep tns | grep -v grep)</pre>" >> $REPORT_FILE
+echo "<h3>DISK SPACE</h3>" >> $REPORT_FILE
+space=$(df -PTh | column -t | sort -n -k6n)
+for i in "${space[@]}"
+do
+echo "<pre>$i </pre>" >> $REPORT_FILE
+done
+
+echo "<h3>Crontab </h3>" >> $REPORT_FILE
+cront=$(crontab -l )
+for i in "${cront[@]}"
+do
+echo "<pre>$i </pre>" >> $REPORT_FILE
+done
+
+echo "<h3>Memory </h3>" >> $REPORT_FILE
+Mem=$(free -g | column -t )
+for i in "${Mem[@]}"
+do
+echo "<pre>$i </pre>" >> $REPORT_FILE
+done
+
+echo "<h3>CPU </h3>" >> $REPORT_FILE
+
+cpuuu=$(lscpu )
+for i in "${cpuuu[@]}"
+do
+echo "<pre>$i </pre>" >> $REPORT_FILE
+done
+
+export ORACLE_HOME=$ORAHOME
+ 
+for i in "${DB[@]}"
+do
+ 
+   export ORACLE_SID="$i"
+   echo "<h3>Database: $i</h3>" >> $REPORT_FILE
+ 
+    SQL_RESULT=$(sqlplus -s / as sysdba <<EOF
+SET PAGESIZE 100
+SET LINESIZE 200
+set lines 200
+col STATUS format a10
+col hrs format 999.99
+col "Used Percentage" format a15
+col "Free Percentage" format a15
+column "Tablespace" format a25
+column "Total Size in MB" format 999,999,999.99
+column "Total Used in MB" format 999,999,999.99
+column "Total free in MB" format 999,999,999.99
+column "Used %" format a6
+column "Free %" format a6
+set linesize 500
+column name format a30
+column COMPATIBILITY format a20
+column DATABASE_COMPATIBILITY format a20
+column FREE_MB format a20
+column type format a20
+SET ECHO        OFF
+SET FEEDBACK    6
+SET HEADING     ON
+SET LINESIZE    180
+SET PAGESIZE    50000
+SET TERMOUT     ON
+SET TIMING      OFF
+SET TRIMOUT     ON
+SET TRIMSPOOL   ON
+SET VERIFY      OFF
+CLEAR COLUMNS
+CLEAR BREAKS
+CLEAR COMPUTES
+COLUMN group_name             FORMAT a25           HEAD 'Disk Group|Name'
+COLUMN state                  FORMAT a11           HEAD 'State'
+COLUMN total_mb               FORMAT 999,999,999   HEAD 'Total Size (GB)'
+COLUMN used_mb                FORMAT 999,999,999   HEAD 'Used Size (GB)'
+COLUMN pct_used               FORMAT 999.99        HEAD '% Used'
+BREAK ON report ON disk_group_name SKIP 1
+set lines 200 pages 20000
+col NAME for a40
+col PATH for a40
+set line 200 pages 200
+Set echo on timing on time on;
+alter session set nls_date_format = 'DD-MON-YYYY HH24:MI:SS';
+SET MARKUP HTML ON
+select i.thread#,d.name,i.instance_name,d.open_mode,d.database_role,d.log_mode,d.controlfile_type,d.PROTECTION_MODE ,d.force_logging,sysdate "Current_server_Time", i.STARTUP_TIME
+from gv$database d,gV$instance i where i.INST_ID=d.INST_ID;
+prompt Datafiles loaction
+select name from v\$datafile;
+prompt Controlfile location
+select name from v\$controlfile;
+prompt Redo log location
+select member from v\$logfile;
+prompt Rman Backup status
+select SESSION_KEY, INPUT_TYPE, STATUS,to_char(START_TIME,'mm/dd/yy hh24:mi') start_time,
+to_char(END_TIME,'mm/dd/yy hh24:mi') end_time,elapsed_seconds/3600 hrs from V\$RMAN_BACKUP_JOB_DETAILS where ROWNUM <=4
+order by session_key ;
+prompt Database size
+select "Size in GB O/S level", ("Size in GB O/S level"- "Total Free in GB") "Size in GB Database Level",("Total Free in GB") "Total Free in GB DB Level",
+trunc((("Size in GB O/S level"- "Total Free in GB")/ "Size in GB O/S level")*100,2)||'%' "Used Percentage",trunc(("Total Free in GB"/ "Size in GB O/S level")*100,2)||'%' "Free Percentage"
+from 
+(select 
+round(( select sum(bytes)/1024/1024/1024 data_size from dba_data_files ) +
+( select nvl(sum(bytes),0)/1024/1024/1024 temp_size from dba_temp_files ) +
+( select sum(bytes)/1024/1024/1024 redo_size from sys.v_\$log ) +
+( select sum(BLOCK_SIZE*FILE_SIZE_BLKS)/1024/1024/1024 controlfile_size from v\$controlfile),2) "Size in GB O/S level",
+(select sum(round("Free in MB",2)) from (select tablespace_name ,
+sum( bytes /(1024*1024*1024)) "Free in MB"  from dba_free_space
+group by tablespace_name) ts join (select tablespace_name , sum( bytes/(1024*1024)) "Total in MB"
+from dba_data_files group by tablespace_name) using ( tablespace_name))  "Total Free in GB"
+from
+dual);
+prompt Parameter file location
+show parameter spfile;
+Prompt Tablespace details
+select tablespace_name "Tablespace",
+round("Total in MB",2) "Total Size in MB",
+round("Free in MB",2) "Total Free in MB",
+round("Total in MB" - "Free in MB", 2) as "Total Used in MB",
+round((("Total in MB" - "Free in MB")/"Total in MB")*100,2)||'%' as "Used %",
+(round(100-(("Total in MB" - "Free in MB")/"Total in MB")*100,2))||'%' as "Free %"
+from (select tablespace_name ,
+sum( bytes /(1024*1024)) "Free in MB"  from dba_free_space
+group by tablespace_name) ts join (select tablespace_name , sum( bytes/(1024*1024)) "Total in MB"
+from dba_data_files group by tablespace_name) using ( tablespace_name) order by 4 desc;
+ 
+Prompt Dataguard information
+show parameter remote_login
+show parameter db_name;
+show parameter memory_target;
+show parameter memory_max_target;
+show parameter db_unique_name;
+show parameter archive_lag_target;
+show parameter compatible;
+show parameter control_files;
+show parameter db_create_file_dest;
+show parameter DB_CREATE_ONLINE_LOG_DEST;
+show parameter db_recovery_file_dest;
+show parameter log_archive_config;
+show parameter log_archive_max_processes;
+show parameter log_archive_dest_1;
+show parameter log_archive_dest_state_1;
+show parameter log_archive_dest_2;
+show parameter log_archive_dest_state_2;
+show parameter fal_server;
+show parameter fal_client;
+show parameter standby_file_management;
+show parameter db_file_name_convert;
+show parameter log_file_name_convert;
+ 
+Prompt ASM information
+SELECT
+     name                                     group_name
+   , state                                    state
+   , total_mb/1024                                 total_mb
+   , (total_mb - free_mb)/1024                     used_mb
+   , ROUND((1- (free_mb / total_mb))*100, 2)  pct_used
+FROM
+     v\$asm_diskgroup
+WHERE
+     total_mb != 0
+ORDER BY
+     Name
+/
+select name , path , MOUNT_STATUS , HEADER_STATUS , MODE_STATUS , STATE , TOTAL_MB, OS_MB from V\$asm_disk;
+select thread#,group#, sequence#, bytes, archived, s.status from v\$standby_log s join v\$logfile using (group#) order by thread#, group#;
+prompt Flash location
+select * from gv\$recover_file;
+prompt Block corruption status
+select * from V\$DATABASE_BLOCK_CORRUPTION;
+prompt Archive log status
+archive log list;
+prompt Create pfile from spfile
+create pfile from spfile;
+EXIT;
+EOF
+)
+ 
+    echo "$SQL_RESULT" >> $REPORT_FILE
+done
+
+
+echo "<h2>GRID status </h2>" >> $REPORT_FILE
+
+DB_RAC=($(ps -ef |grep smon | awk -F'_' '{print $3}' |grep -E '\b(+ASM1|+ASM2)\b'))
+
+DB_SINGLE_INST=($(ps -ef |grep smon | awk -F'_' '{print $3}' |grep -w "+ASM"))
+
+if [ -n "$DB_RAC" ]; then
+    echo "<pre>"This is rac database $DB_RAC"</pre>" >> $REPORT_FILE
+	ASM=$(cat /etc/oratab | awk -F':' '{print $1}'| grep +ASM)
+	ASM_HOME=$(awk -F':' '/^+ASM/ {print $2}' /etc/oratab)
+	export ORACLE_HOME=$ASM_HOME
+	export ORACLE_SID=$ASM
+	export PATH=$ORACLE_HOME/bin:$PATH
+	echo "<h3>Resource Status </h3>" >> $REPORT_FILE
+	echo "<pre>$(crsctl stat res -t)</pre>" >> $REPORT_FILE
+	echo "<pre>$(crsctl check crs)</pre>" >> $REPORT_FILE
+	echo "<pre>$(crsctl check cssd)</pre>" >> $REPORT_FILE
+	echo "<pre>$(ocrcheck)</pre>" >> $REPORT_FILE
+	echo "<pre>$(ocrconfig -showbackup)</pre>" >> $REPORT_FILE
+	echo "<pre>$(crsctl query css votedisk)</pre>" >> $REPORT_FILE
+	echo "<pre>$(crsctl check cluster -all)</pre>" >> $REPORT_FILE
+	echo "<h3>DB status </h3>" >> $REPORT_FILE
+	inst_name=($(srvctl config database))
+	echo "<pre>$(srvctl config scan_listener)</pre>" >> $REPORT_FILE
+	echo "<pre>$(srvctl status database -d "$inst_name" -v)</pre>" >> $REPORT_FILE
+	echo "<h3>Back ground process </h3>" >> $REPORT_FILE
+	echo "<pre>$(ps -ef|grep d.bin)</pre>" >> $REPORT_FILE
+	
+elif [ -n "$DB_SINGLE_INST" ]; then
+    echo "<pre>"This is single instance asm database $DB_SINGLE_INST"</pre>" >> $REPORT_FILE
+	ASM=$(cat /etc/oratab | awk -F':' '{print $1}'| grep +ASM)
+	ASM_HOME=$(awk -F':' '/^+ASM/ {print $2}' /etc/oratab)
+	PATH=$PATH:$ASM_HOME/bin:$ASM_HOME/OPatch:$CRS_HOME/bin
+	inst_name=($(srvctl config database))
+	echo "<h3>DB status </h3>" >> $REPORT_FILE
+	echo "<pre>$(srvctl status database -d "$inst_name" -v)</pre>" >> $REPORT_FILE
+	echo "<h3>Resource Status </h3>" >> $REPORT_FILE
+	echo "<pre>$(crsctl stat res -t)</pre>" >> $REPORT_FILE
+	echo "<pre>$(crsctl check has)</pre>" >> $REPORT_FILE
+	echo "<pre>$(crsctl query has releaseversion)</pre>" >> $REPORT_FILE
+	echo "<pre>$(crsctl query has softwareversion)</pre>" >> $REPORT_FILE
+	echo "<h3>Back ground process </h3>" >> $REPORT_FILE
+	echo "<pre>$(ps -ef|grep d.bin)</pre>" >> $REPORT_FILE
+else
+    echo "<pre>"This is File system Database"</pre>" >> $REPORT_FILE
+fi
+
+# Close HTML tags
+echo "</body></html>" >> $REPORT_FILE
+RESULT="PRECHECK OF SERVER `hostname` "
+MSG_BODY="Kindly find attached pre-checks"
+/home/oracle/alert/sendEmail -f "nttin.operations.database@global.ntt" -t "yogesh.bate@global.ntt","mahesh.gorde@global.ntt" -u "${RESULT}$(date | sed s/"\ "/-/g)" -m "$(echo ${MSG_BODY})" -a "${REPORT_FILE}" -s "202.87.39.91:25"
