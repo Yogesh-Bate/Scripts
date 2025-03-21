@@ -1,0 +1,99 @@
+FOR SOLARIS
+
+check added disk path
+NODE1
+
+set lines 333 pages 999
+col path for a50
+select d.name disk_name,g.name group_name,d.path,d.total_mb/1024,d.free_mb/1024
+from v$asm_disk d, v$asm_diskgroup g
+where d.group_number = g.group_number (+) order by 1;
+
+DISK_NAME                      GROUP_NAME                     PATH                                               D.TOTAL_MB/1024 D.FREE_MB/1024
+------------------------------ ------------------------------ -------------------------------------------------- --------------- --------------
+DATA_0000                      DATA                           /dev/rdsk/c1d74s4                                       511.828125     15.5546875
+DATA_0001                      DATA                           /dev/rdsk/c1d62s4                                       511.828125     15.5390625
+DATA_0002                      DATA                           /dev/rdsk/c1d75s4                                       511.828125        15.5625
+DATA_0003                      DATA                           /dev/rdsk/c1d76s4                                       511.828125     15.6015625
+DATA_0004                      DATA                           /dev/rdsk/c1d77s4                                       511.828125     15.4921875
+DATA_0005                      DATA                           /dev/rdsk/c1d78s4                                       511.828125     15.7109375
+DATA_0006                      DATA                           /dev/rdsk/c1d79s4                                       511.828125     15.5234375
+DATA_0007                      DATA                           /dev/rdsk/c1d80s4                                       511.828125     15.5546875
+DATA_0008                      DATA                           /dev/rdsk/c1d81s4                                       511.828125     15.5390625
+DATA_0009                      DATA                           /dev/rdsk/c1d82s4                                       511.828125      15.578125
+DATA_0020                      DATA                           /dev/rdsk/c1d50s4                                       511.828125     15.5703125
+DATA_0021                      DATA                           /dev/rdsk/c1d51s4                                       511.828125      15.484375
+DATA_0022                      DATA                           /dev/rdsk/c1d52s4                                       511.828125     15.5703125
+DATA_0023                      DATA                           /dev/rdsk/c1d53s4                                       511.828125         15.625
+DATA_0024                      DATA                           /dev/rdsk/c1d54s4                                       511.828125      15.546875
+DATA_0025                      DATA                           /dev/rdsk/c1d55s4                                       511.828125      15.546875
+DATA_0026                      DATA                           /dev/rdsk/c1d56s4                                       511.828125     15.5078125
+DATA_0027                      DATA                           /dev/rdsk/c1d57s4                                       511.828125     15.7578125
+DATA_0028                      DATA                           /dev/rdsk/c1d58s4                                       511.828125     15.4140625
+DATA_0029                      DATA                           /dev/rdsk/c1d59s4                                       511.828125      15.515625
+DATA_0030                      DATA                           /dev/rdsk/c1d60s4                                       511.828125     15.5859375
+DATA_0031                      DATA                           /dev/rdsk/c1d61s4                                       511.828125           15.5
+DATA_0032                      DATA                           /dev/rdsk/c1d63s4                                       511.828125     15.6640625
+DATA_0033                      DATA                           /dev/rdsk/c1d64s4                                       511.828125     15.5078125
+DATA_0034                      DATA                           /dev/rdsk/c1d65s4                                       511.828125       15.53125
+DATA_0035                      DATA                           /dev/rdsk/c1d66s4                                       511.828125     15.5546875
+DATA_0036                      DATA                           /dev/rdsk/c1d67s4                                       511.828125     15.4921875
+DATA_0037                      DATA                           /dev/rdsk/c1d68s4                                       511.828125     15.6796875
+DATA_0038                      DATA                           /dev/rdsk/c1d69s4                                       511.828125     15.7109375
+DATA_0039                      DATA                           /dev/rdsk/c1d70s4                                       511.828125      15.578125
+FRA_0000                       FRA                            /dev/rdsk/c1d71s4                                       511.828125      272.59375
+FRA_0001                       FRA                            /dev/rdsk/c1d72s4                                       511.828125     272.648438
+FRA_0002                       FRA                            /dev/rdsk/c1d73s4                                       511.828125     272.695313
+MGMT_0001                      MGMT                           /dev/rdsk/c1d49s4                                       99.9765625       73.65625
+OCRH1                          OCR                            AFD:OCRH1                                               29.9921875      29.546875
+OCRH2                          OCR                            AFD:OCRH2                                               29.9921875      29.546875
+OCRH3                          OCR                            AFD:OCRH3                                               29.9921875     29.5703125
+                                                              /dev/rdsk/c1d46s4                                                0              0
+                                                              /dev/rdsk/c1d48s4                                                0              0
+                                                              /dev/rdsk/c1d83s4                                                0              0
+                                                              /dev/rdsk/c1d47s4                                                0              0
+                                                              /dev/rdsk/c1d84s4                                                0              0
+
+
+check permission at OS level on both nodes.
+permission should be this crw-rw---- 
+
+grid@MUMSOADBN5PROD:~$ ls -lrt /dev/rdsk/c1d83s4
+lrwxrwxrwx   1 root     root          67 Jul 26 15:03 /dev/rdsk/c1d83s4 -> ../../devices/virtual-devices@100/channel-devices@200/disk@53:e,raw
+grid@MUMSOADBN5PROD:~$ ls -lrt /devices/virtual-devices@100/channel-devices@200/disk@53:e,raw
+crw-rw----   1 grid     oinstall 227, 84 Jul 26 15:11 /devices/virtual-devices@100/channel-devices@200/disk@53:e,raw
+grid@MUMSOADBN5PROD:~$ ls -lrt /dev/rdsk/c1d84s4
+lrwxrwxrwx   1 root     root          67 Jul 26 15:04 /dev/rdsk/c1d84s4 -> ../../devices/virtual-devices@100/channel-devices@200/disk@54:e,raw
+grid@MUMSOADBN5PROD:~$
+grid@MUMSOADBN5PROD:~$ ls -lrt /devices/virtual-devices@100/channel-devices@200/disk@54:e,raw
+crw-rw----   1 grid     oinstall 227, 92 Jul 26 15:11 /devices/virtual-devices@100/channel-devices@200/disk@54:e,raw
+
+
+connect with sysasm
+
+check power limit
+
+show parameter power;
+NAME                                 TYPE        VALUE
+------------------------------------ ----------- ------------------------------
+asm_power_limit                      integer     11
+
+
+then add disk in disk group.
+
+SQL> alter diskgroup DATA add disk '/dev/rdsk/c1d83s4','/dev/rdsk/c1d84s4';
+
+Diskgroup altered.
+
+
+check rebalance of disks.
+
+SQL> select * from v$asm_operation;
+
+GROUP_NUMBER OPERA PASS      STAT      POWER     ACTUAL      SOFAR   EST_WORK   EST_RATE EST_MINUTES ERROR_CODE                                       CON_ID
+------------ ----- --------- ---- ---------- ---------- ---------- ---------- ---------- ----------- -------------------------------------------- ----------
+           1 REBAL COMPACT   WAIT         11         11          0          0          0           0                                                       0
+           1 REBAL REBALANCE RUN          11         11       1501     119546       9041          13                                                       0
+           1 REBAL REBUILD   DONE         11         11          0          0          0           0                                                       0
+
+SQL>
