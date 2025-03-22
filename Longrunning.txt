@@ -1,0 +1,292 @@
+-Longrunning
+set lines 999 pages 999
+col TARGET for a30
+col USERNAME for a20
+select sid,serial#, username,TARGET||OPNAME TARGET, TOTALWORK, SOFAR,TIME_REMAINING/60 Mins_Remaining,ELAPSED_SECONDS,SQL_ID from gv$session_longops where TIME_REMAINING>0 order by TIME_REMAINING;
+
+--Blocking
+set lines 999
+col username for a20
+select username,blocking_session,sql_id,sid, serial#,wait_class, seconds_in_wait from gv$session where blocking_session is not NULL order by blocking_session;
+
+set lines 200 pages 2000
+select GROUP_NUMBER , NAME , STATE , TOTAL_MB/1024 TOTAL_GB, FREE_MB/1024 FREE_GB, (TOTAL_MB-FREE_MB)/1024 USED_GB, (FREE_MB/TOTAL_MB)*100 FREE_percentage
+from V$asm_diskgroup;
+
+select
+   c.owner,
+   c.object_name,
+   c.object_type,
+   b.sid,
+   b.serial#,
+   b.status,
+   b.osuser,
+   b.machine
+from
+   gv$locked_object a ,
+   gv$session b,
+   dba_objects c
+where
+   b.sid = a.session_id
+and
+   a.object_id = c.object_id;
+   
+   
+   
+
+select
+   ss.username,
+   se.SID,
+   VALUE/100 cpu_usage_seconds
+from
+   v$session ss,
+   v$sesstat se,
+   v$statname sn
+where
+   se.STATISTIC# = sn.STATISTIC#
+and
+   NAME like '%CPU used by this session%'
+and
+   se.SID = ss.SID
+and
+   ss.status='ACTIVE'
+and
+   ss.username is not null
+order by VALUE desc;
+
+
+
+Find Blocked Sessions-
+
+select a.SID "Blocking Session", b.SID "Blocked Session"  
+from v$lock a, v$lock b 
+where a.SID != b.SID and a.ID1 = b.ID1  and a.ID2 = b.ID2 and 
+b.request > 0 and a.block = 1;
+
+Find Lock Wait Time-
+
+
+SELECT 
+  blocking_session "BLOCKING_SESSION",
+  sid "BLOCKED_SESSION",
+  serial# "BLOCKED_SERIAL#", 
+  seconds_in_wait/60 "WAIT_TIME(MINUTES)"
+FROM v$session
+WHERE blocking_session is not NULL
+ORDER BY blocking_session;
+
+
+Find Locked Table -
+
+col session_id head 'Sid' form 9999
+col object_name head "Table|Locked" form a30
+col oracle_username head "Oracle|Username" form a10 truncate 
+col os_user_name head "OS|Username" form a10 truncate 
+col process head "Client|Process|ID" form 99999999
+col owner head "Table|Owner" form a10
+col mode_held form a15
+select lo.session_id,lo.oracle_username,lo.os_user_name,
+lo.process,do.object_name,do.owner,
+decode(lo.locked_mode,0, 'None',1, 'Null',2, 'Row Share (SS)',
+3, 'Row Excl (SX)',4, 'Share',5, 'Share Row Excl (SSX)',6, 'Exclusive',
+to_char(lo.locked_mode)) mode_held
+from gv$locked_object lo, dba_objects do
+where lo.object_id = do.object_id
+order by 5
+/
+
+FUSIONDWHP
+
+
+-------------------------------------------------------------------------------------------------
+
+select sid,serial#,PREV_SQL_ID from gv$session where sid='<sid>' and serial#='<serial#>';
+
+select sql_id,SQL_FULLTEXT from gv$sqlstats where sql_id='<,PREV_SQL_ID>';
+
+Open cursor view also may have info.
+
+select * from v$open_cursor where sid='<sid>' order by last_sql_active_time desc;
+
+
+-----------------------------------------------------------------------------------------------------
+
+select s1.username || '@' || s1.machine || ' ( SID=' || s1.sid || ' ) is blocking ' || s2.username || '@' || 
+s2.machine || ' ( SID=' || s2.sid || ' ) ' AS blocking_status from Gv$lock l1, Gv$session s1, Gv$lock l2, 
+Gv$session s2 where s1.sid=l1.sid and s2.sid=l2.sid and l1.BLOCK=1 and l2.request > 0 and l1.id1 = 
+l2.id1 and l2.id2 = l2.id2 ; 
+
+/u01/app/oracle/gc_inst1/em/EMGC_OMS1/sysman/log
+
+
+4szb7j8st7k1b      29102 ACTIVE
+
+/home/oracle/software
+
+
+
+
+col EVENT for a40;
+
+select final_blocking_instance f_blk_inst, final_blocking_session f_blk_sess, event, sql_id, row_wait_obj#||','||row_wait_block# obj_lck, count(*) num_blocked, round(max(wait_time_micro)/1000000,2) max_wait_sec
+from gv$session
+where final_blocking_session_Status='VALID'
+group by final_blocking_instance, final_blocking_session, event, sql_id, row_wait_obj#||','||row_wait_block#
+order by 1;
+
+SELECT *  
+ FROM DBA_SCHEDULER_JOBS; 
+WHERE job_name='GATHER_STATS_JOB';
+
+@?/rdbms/admin/awrrpt
+
+
+
+44900
+
+
+
+
+       727 BOBDW
+TBL_L2ED_FULL
+
+      1876 BOBDW
+TBL_L2ED_FULL
+
+       224 BOBDW
+TBL_L2ED_FULL
+
+       831 BOBDW
+TBL_L2ED_FULL
+
+       909 BOBDW
+TBL_L2ED_FULL
+
+       761 BOBDW
+TBL_L2ED_FULL
+
+      2098 BOBDW
+TBL_L2ED_FULL
+
+      2239 BOBDW
+TBL_L2ED_FULL
+
+       624 BOBDW
+TBL_L2ED_FULL
+
+
+
+select sql_id from gv$session where sid=909;
+
+select sql_id from gv$session where sid=831;
+
+select sql_id from gv$session where sid=718;
+
+
+select sql_id,SQL_FULLTEXT from gv$sqlstats where sql_id='dtypfkw0ydp8q';
+
+
+      2164 BOBCARD
+L2PT
+
+       303 BOBCARD
+L2PT
+
+      2016 BOBCARD
+L2PT
+
+       750 BOBCARD
+L2PT
+
+       718 BOBCARD
+L2PT
+
+
+select sql_id from gv$session where sid=718;
+
+
+cursor bigtemp_sids is
+select * from (
+select s.sid,
+s.status,
+s.sql_hash_value sesshash,
+u.SQLHASH sorthash,
+s.username,
+u.tablespace,
+sum(u.blocks*p.value/1024/1024) mbused ,
+sum(u.extents) noexts,
+nvl(s.module,s.program) proginfo,
+floor(last_call_et/3600)||':'||
+floor(mod(last_call_et,3600)/60)||':'||
+mod(mod(last_call_et,3600),60) lastcallet
+from v$sort_usage u,
+v$session s,
+v$parameter p
+where u.session_addr = s.saddr
+and p.name = 'db_block_size'
+group by s.sid,s.status,s.sql_hash_value,u.sqlhash,s.username,u.tablespace,
+nvl(s.module,s.program),
+floor(last_call_et/3600)||':'||
+floor(mod(last_call_et,3600)/60)||':'||
+mod(mod(last_call_et,3600),60)
+order by 7 desc,3)
+where rownum < 11;
+
+
+
+--------------------------------------------------------------------------------
+
+explain plan for
+select * from emp;
+
+SELECT PLAN_TABLE_OUTPUT FROM TABLE(DBMS_XPLAN.DISPLAY());
+
+
+
+
+Select DISTINCT v.SQL_TEXT, v.SQL_ID, o.owner,o.object_name, o.object_type,v.LAST_ACTIVE_TIME
+from   dba_hist_sqlstat t, dba_hist_snapshot s, dba_objects o, v$sqlarea v
+where  t.snap_id = s.snap_id
+and    t.dbid = s.dbid
+and    t.SQL_ID= v.SQL_ID
+and    t.instance_number = s.instance_number
+and    s.begin_interval_time between trunc(sysdate)-1 and trunc(sysdate)
+and    o.OBJECT_TYPE='TABLE'
+and    o.OBJECT_NAME='TBL_L2ED_STG'
+/
+
+
+
+SET LINESIZE 500
+SET PAGESIZE 1000
+SET VERIFY OFF
+
+COLUMN owner FORMAT A20
+COLUMN username FORMAT A20
+COLUMN object_owner FORMAT A20
+COLUMN object_name FORMAT A30
+COLUMN locked_mode FORMAT A15
+
+SELECT lo.session_id AS sid,
+       s.serial#,
+       NVL(lo.oracle_username, '(oracle)') AS username,
+       o.owner AS object_owner,
+       o.object_name,
+       Decode(lo.locked_mode, 0, 'None',
+                             1, 'Null (NULL)',
+                             2, 'Row-S (SS)',
+                             3, 'Row-X (SX)',
+                             4, 'Share (S)',
+                             5, 'S/Row-X (SSX)',
+                             6, 'Exclusive (X)',
+                             lo.locked_mode) locked_mode,
+       lo.os_user_name
+FROM   gv$locked_object lo
+       JOIN dba_objects o ON o.object_id = lo.object_id
+       JOIN gv$session s ON lo.session_id = s.sid
+ORDER BY 1, 2, 3, 4;
+
+
+
+
+SELECT 'ALTER SYSTEM KILL SESSION '''||sid||','||serial#||''' IMMEDIATE;'  FROM v$session where username='PROIMSMF';
